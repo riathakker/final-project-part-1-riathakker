@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
-
+#include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/stat.h>
 
@@ -96,10 +97,29 @@ int gatorgit_add(const char* filename) {
 
 int gatorgit_rm(const char* filename) {
   
-  /* TODO: Your code here */
+  // create new index and also original file pointer
+  FILE* filePointer = fopen(".gatorgit/.index", "r");
+  FILE *filePointer2 = fopen(".gatorgit/.newindex", "w");
 
-  return 0;
-  
+  char currentFile[FILENAME_SIZE];
+  int returnValue = 1;
+  // go through the filenames 
+  while(fgets(currentFile, FILENAME_SIZE, filePointer)) {
+    // copy them all to newindex except for the one that is equal
+    strtok(currentFile, "\n");
+    if (strcmp(currentFile, filename) == 0) {
+      returnValue = 0;
+    } else {
+      fprintf(filePointer2, "%s\n", currentFile);
+    }
+  }
+  // if a match is never found, let the return value be 1 and print error
+  if (returnValue == 1) {
+    fprintf(stderr, "%s %s %s", "ERROR: File", filename, "not tracked\n");
+  }
+  // move the contents of newindex to index
+  fs_mv(".gatorgit/.newindex", ".gatorgit/.index");
+  return returnValue;
 }
 
 /* gatorgit commit -m <msg>
@@ -111,31 +131,119 @@ int gatorgit_rm(const char* filename) {
 const char* go_gator = "GOLDEN GATOR!";
 
 int is_commit_msg_ok(const char* msg) {
-  /* TODO: Your code here  */
+  // iterate through the msg; if the first character of golden gator is found check that the rest are equal as well
+  while (*msg != '\0') {
+    if (*msg == go_gator[0]) {
+      int i = 1;
+      while (go_gator[i] != '\0') {
+        if (msg[i] != go_gator[i]) {
+          return 1;
+        }
+        i++;
+      }
+      return 0;
+    }
+  }
   return 0;
 }
 
 void next_commit_id(char* commit_id) {
-  /* TODO: Your code here */
+  // read from prev
+  FILE *filePointer = fopen(".gatorgit/.prev", "r");
+  char previousID[COMMIT_ID_SIZE];
+  fgets(previousID, COMMIT_ID_SIZE, filePointer);
+  fclose(filePointer);
+
+  // if prev is empty then this is the first commit and we can populate with an ID of 0s
+  if (previousID[0] == '\0') {
+    for (int j = 0; j < COMMIT_ID_SIZE - 1; j++) {
+      commit_id[j] = '0';
+    }
+    previousID[COMMIT_ID_SIZE - 1] = '\0';
+  }
+  // create list of viable characters
+  char viable[5] = {'c', 's', '2', '5', '6'};
+  // randomly generate between 0 to 4 and populate the id with the character given that index
+  // srand keeps it unique
+  srand(time(NULL));
+  for (int i = 0; i < COMMIT_ID_SIZE - 1; i++) {
+    commit_id[i] = viable[rand() % 5];
+  }
+  commit_id[COMMIT_ID_SIZE - 1] = '\0';
 }
 
 int gatorgit_commit(const char* msg) {
-  if (!is_commit_msg_ok(msg)) {
+  if (is_commit_msg_ok(msg)) {
     fprintf(stderr, "ERROR: Message must contain \"%s\"\n", go_gator);
     return 1;
   }
 
   char commit_id[COMMIT_ID_SIZE];
-  char commit_dir[FILENAME_SIZE];
-  char file_name[FILENAME_SIZE];
-  char line[FILENAME_SIZE];
+  char commit_dir[FILENAME_SIZE] = ".gatorgit/";
 
-  
+ // get ID and then make directory using ID
+  next_commit_id(commit_id);
+  strcat(commit_dir, commit_id);
+  fs_mkdir(commit_dir);
+
+  // copy index, prev, message
+  char newIndex[FILENAME_SIZE];
+  strcpy(newIndex, commit_dir);
+  strcat(newIndex, "/.index");
+  FILE *indexPointer = fopen(newIndex, "w");
+  char newPrev[FILENAME_SIZE];
+  strcpy(newPrev, commit_dir);
+  strcat(newPrev, "/.prev");
+  FILE *prevPointer = fopen(newPrev, "w");
+  fclose(indexPointer);
+  fclose(prevPointer);
+  fs_cp(".gatorgit/.index", newIndex);
+  fs_cp(".gatorgit/.prev", newPrev);
+
+  write_string_to_file(".gatorgit/.prev", commit_id);
+
+  FILE *oldIndexPointer = fopen(".gatorgit/.index", "r");
+  char currentFile[FILENAME_SIZE];
+  while (fgets(currentFile, FILENAME_SIZE, oldIndexPointer)) {
+    strtok(currentFile, "\n");
+    char fileDest[FILENAME_SIZE];
+    strcpy(fileDest, commit_dir);
+    strcat(fileDest, "/");
+    strcat(fileDest, currentFile);
+    FILE *newPointer = fopen(fileDest, "w");
+    fs_cp(currentFile, fileDest);
+    fclose(newPointer);
+  }
+  fclose(oldIndexPointer);
+
+  // create msg file
+  char newMsg[FILENAME_SIZE];
+  strcpy(newMsg, commit_dir);
+  strcat(newMsg, "/.msg");
+  FILE *msgPointer = fopen(newMsg, "w");
+  fclose(msgPointer);
+  write_string_to_file(newMsg, msg);
+
   return 0;
 }
 
 int gatorgit_status() {
   /* YOUR CODE HERE */
 
+  FILE *filePointer;
+  filePointer = fopen(".gatorgit/.index", "r");
+  char currentFile[FILENAME_SIZE];
+  fprintf(stdout, "Tracked files: \n\n");
+  int numElems = 0;
+  // for each file in .gatorgit/.index:
+  while (fgets(currentFile, FILENAME_SIZE, filePointer)) {
+    fprintf(stdout, "  %s", currentFile);
+    numElems++;
+  }
+  if (numElems != 1) {
+    fprintf(stdout, "\n %d %s", numElems, "files total\n");
+  } else {
+    fprintf(stdout, "\n %d %s", numElems, "file total\n");
+  }
   return 0;
 }
