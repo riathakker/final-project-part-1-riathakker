@@ -147,6 +147,31 @@ int is_commit_msg_ok(const char* msg) {
   return 0;
 }
 
+void increment(char* previousID) {
+  // increment
+  for (int i = strlen(previousID) - 1; i >= 0; i--) {
+    if (previousID[i] == 'c') {
+      previousID[i] = 's';
+      return;
+    }
+    if (previousID[i] == 's') {
+      previousID[i] = '2';
+      return;
+    }
+    if (previousID[i] == '2') {
+      previousID[i] = '5';
+      return;
+    }
+    if (previousID[i] == '5') {
+      previousID[i] = '6';
+      return;
+    }
+    if (previousID[i] == '6') {
+      previousID[i] = 'c';
+    }
+  }
+}
+
 void next_commit_id(char* commit_id) {
   // read from prev
   FILE *filePointer = fopen(".gatorgit/.prev", "r");
@@ -160,16 +185,16 @@ void next_commit_id(char* commit_id) {
       commit_id[j] = '0';
     }
     previousID[COMMIT_ID_SIZE - 1] = '\0';
+  } 
+  
+  if (strcmp("0000000000000000000000000000000000000000", previousID) == 0) {
+    strcpy(commit_id, "cccccccccccccccccccccccccccccccccccccccc");
+    return;
   }
-  // create list of viable characters
-  char viable[5] = {'c', 's', '2', '5', '6'};
-  // randomly generate between 0 to 4 and populate the id with the character given that index
-  // srand keeps it unique
-  srand(time(NULL));
-  for (int i = 0; i < COMMIT_ID_SIZE - 1; i++) {
-    commit_id[i] = viable[rand() % 5];
-  }
-  commit_id[COMMIT_ID_SIZE - 1] = '\0';
+
+  increment(previousID);
+
+  strcpy(commit_id, previousID);
 }
 
 int gatorgit_commit(const char* msg) {
